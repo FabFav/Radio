@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E14">
+<meta name="description" content="Hub musicale con 12 generi, equalizzatore 5-bande, preferiti, ricerca stazioni radio in tempo reale">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SINTONIA">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/png" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<title>SINTONIA — Hub Musicale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E14;
+    --panel:#141924;
+    --panel-raised:#1C2330;
+    --amber:#E8A33D;
+    --amber-dim:#5A431F;
+    --teal:#35D0BA;
+    --text:#EDF1F7;
+    --muted:#6B7480;
+    --line:#262E3B;
+    --danger:#E0616B;
+  }
+  html[data-theme="light"]{
+    --bg:#F6F3EC;
+    --panel:#FFFFFF;
+    --panel-raised:#F1EEE4;
+    --amber:#B9750E;
+    --amber-dim:#F0DDB4;
+    --teal:#0C8C7D;
+    --text:#1A1D24;
+    --muted:#6B7280;
+    --line:#E3DFD3;
+    --danger:#C4404A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;height:100%;}
+  body{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(232,163,61,0.07), transparent 60%),
+      var(--bg);
+    transition:background 0.25s ease, color 0.25s ease;
+  }
+
+  ::selection{background:var(--amber-dim);color:var(--text);}
+
+  .radio{
+    flex:1;
+    max-width:760px;
+    width:100%;
+    margin:0 auto;
+    padding:36px 20px 140px;
+  }
+
+  /* ---------- Header ---------- */
+  .brand{text-align:center;margin-bottom:28px;position:relative;}
+  .theme-toggle{
+    position:absolute;
+    top:2px;right:0;
+    width:38px;height:38px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--text);
+    font-size:16px;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:border-color 0.15s ease;
+  }
+  .theme-toggle:hover{border-color:var(--amber);}
+  .wordmark{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:clamp(32px,7vw,44px);
+    letter-spacing:6px;
+    color:var(--text);
+    text-shadow:0 0 24px rgba(232,163,61,0.25);
+  }
+  .tagline{
+    font-size:13px;
+    color:var(--muted);
+    letter-spacing:0.4px;
+    margin-top:6px;
+    font-family:'Inter',sans-serif;
+  }
+
+  /* ---------- Display panel (LCD) ---------- */
+  .display-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:12px 20px;
+    text-align:center;
+    margin-bottom:14px;
+    position:relative;
+    overflow:hidden;
+  }
+  .display-panel::before{
+    content:"";
+    position:absolute;inset:0;
+    background:linear-gradient(180deg, rgba(255,255,255,0.03), transparent 40%);
+    pointer-events:none;
+  }
+  .display-freq{
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(24px,5.5vw,32px);
+    font-weight:700;
+    color:var(--amber);
+    letter-spacing:1.5px;
+    text-shadow:0 0 14px rgba(232,163,61,0.4);
+    transition:opacity 0.2s ease;
+  }
+  .display-freq .mhz{font-size:0.4em;color:var(--muted);margin-left:6px;letter-spacing:1px;}
+  .display-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:2.5px;
+    color:var(--muted);
+    margin-top:3px;
+    text-transform:uppercase;
+  }
+
+  /* ---------- Tuner dial ---------- */
+  .tuner{
+    position:relative;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:18px 0 14px;
+    margin-bottom:14px;
+  }
+  .tuner-track{
+    display:flex;
+    gap:10px;
+    overflow-x:auto;
+    padding:6px 18px 10px;
+    scrollbar-width:thin;
+    scrollbar-color:var(--line) transparent;
+  }
+  .tuner-track::-webkit-scrollbar{height:5px;}
+  .tuner-track::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+  .genre-btn{
+    flex:0 0 auto;
+    background:var(--panel-raised);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 16px 8px;
+    cursor:pointer;
+    text-align:left;
+    color:var(--text);
+    transition:all 0.18s ease;
+    min-width:96px;
+  }
+  .genre-btn:hover{border-color:var(--amber-dim);transform:translateY(-1px);}
+  .genre-btn .g-freq{
+    display:block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+    letter-spacing:0.5px;
+  }
+  .genre-btn .g-name{
+    display:block;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:14.5px;
+    margin-top:2px;
+  }
+  .genre-btn.active{
+    background:linear-gradient(180deg, rgba(232,163,61,0.16), rgba(232,163,61,0.05));
+    border-color:var(--amber);
+    box-shadow:0 0 0 1px rgba(232,163,61,0.2) inset, 0 0 20px rgba(232,163,61,0.12);
+  }
+  .genre-btn.active .g-freq{color:var(--amber);}
+
+  .tuner-rail{
+    height:2px;
+    margin:2px 18px 0;
+    background:repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 8px);
+    opacity:0.7;
+  }
+
+  /* ---------- Search bar ---------- */
+  .search-bar{
+    display:flex;
+    gap:8px;
+    margin-bottom:14px;
+  }
+  .search-bar input{
+    flex:1;
+    min-width:0;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:11px 14px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    outline:none;
+    transition:border-color 0.15s ease;
+  }
+  .search-bar input::placeholder{color:var(--muted);}
+  .search-bar input:focus{border-color:var(--amber);}
+  .search-bar .ghost-btn{flex:0 0 auto;}
+
+  /* ---------- Toolbar ---------- */
+  .toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin:4px 4px 14px;
+    gap:10px;
+  }
+  .toolbar-left{display:flex;gap:8px;flex-wrap:wrap;}
+  .ghost-btn.active{border-color:var(--amber);color:var(--amber);}
+  .ghost-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    font-weight:500;
+    padding:8px 14px;
+    border-radius:8px;
+    cursor:pointer;
+    transition:border-color 0.15s ease, color 0.15s ease;
+  }
+  .ghost-btn:hover{border-color:var(--amber);color:var(--amber);}
+  .station-count{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+  }
+
+  /* ---------- Presets / station list ---------- */
+  .presets{display:flex;flex-direction:column;gap:8px;min-height:120px;}
+  .empty-state, .status-msg{
+    color:var(--muted);
+    font-size:14px;
+    text-align:center;
+    padding:36px 20px;
+    border:1px dashed var(--line);
+    border-radius:12px;
+    line-height:1.6;
+  }
+  .status-msg.error{color:var(--danger);border-color:rgba(224,97,107,0.35);}
+
+  .station-row{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:12px 14px;
+    cursor:pointer;
+    transition:border-color 0.15s ease, background 0.15s ease;
+  }
+  .station-row:hover{border-color:var(--amber-dim);}
+  .station-row.playing{
+    border-color:var(--teal);
+    background:linear-gradient(180deg, rgba(53,208,186,0.08), rgba(53,208,186,0.02));
+  }
+  .station-health{
+    flex:0 0 auto;
+    width:10px;height:10px;
+    border-radius:50%;
+    background:#4CAF50; /* green for good */
+  }
+  .station-health.warn{background:#FFC107;} /* yellow for ok */
+  .station-health.bad{background:#F44336;}  /* red for poor */
+  .station-fav{
+    width:38px;height:38px;border-radius:8px;
+    background:var(--panel-raised);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;
+    color:var(--muted);
+    flex:0 0 auto;
+    overflow:hidden;
+  }
+  .station-fav img{width:100%;height:100%;object-fit:cover;}
+  .station-main{flex:1;min-width:0;}
+  .station-name{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:14.5px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .station-meta{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .station-play-icon{
+    flex:0 0 auto;
+    width:30px;height:30px;
+    border-radius:50%;
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--text);font-size:12px;
+  }
+  .station-row.playing .station-play-icon{border-color:var(--teal);color:var(--teal);}
+
+  .star-btn{
+    flex:0 0 auto;
+    background:transparent;
+    border:none;
+    color:var(--muted);
+    font-size:18px;
+    line-height:1;
+    cursor:pointer;
+    padding:4px;
+    transition:color 0.15s ease, transform 0.1s ease;
+  }
+  .star-btn:hover{color:var(--amber);transform:scale(1.1);}
+  .star-btn.active{color:var(--amber);}
+
+  /* ---------- Now playing footer ---------- */
+  .now-playing{
+    position:fixed;
+    left:0;right:0;bottom:0;
+    background:var(--panel);
+    border-top:1px solid var(--line);
+    padding:12px 18px;
+    display:flex;
+    align-items:center;
+    gap:16px;
+    backdrop-filter:blur(6px);
+    z-index:10;
+  }
+  .vu{display:flex;align-items:flex-end;gap:3px;height:26px;flex:0 0 auto;}
+  .vu span{
+    width:4px;
+    background:var(--teal);
+    border-radius:2px;
+    height:20%;
+    opacity:0.35;
+    transition:opacity 0.2s ease;
+  }
+  .vu.playing span{
+    animation:vu 0.9s ease-in-out infinite;
+    opacity:1;
+  }
+  .vu span:nth-child(1){animation-delay:0s;}
+  .vu span:nth-child(2){animation-delay:0.12s;}
+  .vu span:nth-child(3){animation-delay:0.24s;}
+  .vu span:nth-child(4){animation-delay:0.36s;}
+  .vu span:nth-child(5){animation-delay:0.18s;}
+  @keyframes vu{
+    0%,100%{height:20%;}
+    50%{height:100%;}
+  }
+
+  .np-info{flex:1;min-width:0;}
+  .np-name{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:14px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .np-meta{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+  .np-controls{display:flex;align-items:center;gap:12px;flex:0 0 auto;}
+  #playPauseBtn{
+    width:42px;height:42px;
+    border-radius:50%;
+    border:1px solid var(--amber);
+    background:transparent;
+    color:var(--amber);
+    font-size:15px;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #playPauseBtn:hover{background:rgba(232,163,61,0.1);}
+  #volumeSlider{
+    width:80px;
+    accent-color:var(--teal);
+  }
+  .live-dot{
+    display:none;
+    align-items:center;
+    gap:6px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:1.5px;
+    color:var(--teal);
+    flex:0 0 auto;
+  }
+  .live-dot.on{display:flex;}
+  .live-dot span{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--teal);
+    box-shadow:0 0 8px var(--teal);
+    animation:pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:1;}
+    50%{opacity:0.3;}
+  }
+
+  @media (max-width:520px){
+    .np-meta{display:none;}
+    #volumeSlider{width:56px;}
+    .live-dot span{margin-right:0;}
+    .live-dot{font-size:0;gap:0;}
+    .live-dot span{width:8px;height:8px;}
+  }
+
+  /* ---------- Equalizer section ---------- */
+  .eq-section{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px 14px;
+    margin-top:16px;
+  }
+  .eq-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .eq-title{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:15px;
+    letter-spacing:0.5px;
+  }
+  .eq-switch{position:relative;display:inline-block;cursor:pointer;}
+  .eq-switch input{position:absolute;opacity:0;width:0;height:0;}
+  .eq-switch-track{
+    display:block;
+    width:42px;height:24px;
+    background:var(--panel-raised);
+    border:1px solid var(--line);
+    border-radius:20px;
+    position:relative;
+    transition:background 0.2s ease, border-color 0.2s ease;
+  }
+  .eq-switch-thumb{
+    position:absolute;
+    top:2px;left:2px;
+    width:18px;height:18px;
+    border-radius:50%;
+    background:var(--muted);
+    transition:transform 0.2s ease, background 0.2s ease;
+  }
+  .eq-switch input:checked + .eq-switch-track{background:rgba(53,208,186,0.18);border-color:var(--teal);}
+  .eq-switch input:checked + .eq-switch-track .eq-switch-thumb{transform:translateX(18px);background:var(--teal);}
+
+  .eq-presets{
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    padding-bottom:12px;
+    margin-bottom:2px;
+  }
+  .eq-presets::-webkit-scrollbar{height:4px;}
+  .eq-presets::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+  .eq-preset-chip{
+    flex:0 0 auto;
+    background:var(--panel-raised);
+    border:1px solid var(--line);
+    color:var(--muted);
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    font-weight:500;
+    padding:7px 13px;
+    border-radius:20px;
+    cursor:pointer;
+    transition:all 0.15s ease;
+    white-space:nowrap;
+  }
+  .eq-preset-chip:hover{border-color:var(--amber-dim);color:var(--text);}
+  .eq-preset-chip.active{
+    background:linear-gradient(180deg, rgba(232,163,61,0.18), rgba(232,163,61,0.06));
+    border-color:var(--amber);
+    color:var(--amber);
+  }
+
+  .eq-bands{
+    display:flex;
+    gap:14px;
+    justify-content:space-between;
+    opacity:0.4;
+    pointer-events:none;
+    transition:opacity 0.2s ease;
+  }
+  .eq-bands.active{opacity:1;pointer-events:auto;}
+  .eq-band{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+  }
+  .eq-band input[type=range]{
+    writing-mode:vertical-lr;
+    direction:rtl;
+    width:20px;
+    height:96px;
+    accent-color:var(--amber);
+    cursor:pointer;
+  }
+  .eq-band .eq-db{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    color:var(--muted);
+    min-height:14px;
+  }
+  .eq-band .eq-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    letter-spacing:0.5px;
+    color:var(--muted);
+    text-transform:uppercase;
+    text-align:center;
+  }
+  .eq-footer{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:14px;
+  }
+  .eq-status{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11.5px;
+    color:var(--muted);
+    text-align:right;
+  }
+  .eq-status.warn{color:var(--danger);}
+  .eq-status.on{color:var(--teal);}
+
+  @media (max-width:420px){
+    .eq-bands{gap:6px;}
+    .eq-band input[type=range]{height:78px;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .vu span, .live-dot span{animation:none !important;}
+  }
+</style>
+</head>
+<body>
+
+  <div class="radio">
+    <header class="brand">
+      <button id="themeToggle" class="theme-toggle" aria-label="Cambia tema" title="Cambia tema">☀️</button>
+      <div class="wordmark">SINTONIA</div>
+      <div class="tagline">Scegli un genere. Trova la tua frequenza.</div>
+    </header>
+
+    <section class="display-panel">
+      <div class="display-freq" id="freqDisplay">— —.—<span class="mhz">MHz</span></div>
+      <div class="display-label" id="genreDisplay">seleziona un genere</div>
+    </section>
+
+    <section class="tuner">
+      <div class="tuner-track" id="tunerTrack"></div>
+      <div class="tuner-rail"></div>
+    </section>
+
+    <section class="eq-section">
+      <div class="eq-header">
+        <span class="eq-title">Equalizzatore</span>
+        <label class="eq-switch">
+          <input type="checkbox" id="eqToggle">
+          <span class="eq-switch-track"><span class="eq-switch-thumb"></span></span>
+        </label>
+      </div>
+      <div class="eq-presets" id="eqPresets"></div>
+      <div class="eq-bands" id="eqBands"></div>
+      <div class="eq-footer">
+        <button class="ghost-btn" id="eqResetBtn">Azzera</button>
+        <span class="eq-status" id="eqStatus">Disattivato</span>
+      </div>
+    </section>
+
+    <section class="search-bar">
+      <input type="text" id="searchInput" placeholder="Cerca una stazione per nome…">
+      <button class="ghost-btn" id="searchBtn">Cerca</button>
+    </section>
+
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button class="ghost-btn" id="shuffleBtn">Sorprendimi</button>
+        <button class="ghost-btn" id="favBtn">★ Preferiti</button>
+        <button class="ghost-btn" id="qualityFilterBtn" title="Mostra solo stazioni affidabili">● Qualità alta</button>
+      </div>
+      <span class="station-count" id="stationCount"></span>
+    </div>
+
+    <section class="presets" id="presets">
+      <div class="empty-state">Sintonizzati su un genere qui sopra per scoprire le stazioni disponibili in tempo reale.</div>
+    </section>
+  </div>
+
+  <footer class="now-playing">
+    <div class="vu" id="vu">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="np-info">
+      <div class="np-name" id="npName">Nessuna riproduzione</div>
+      <div class="np-meta" id="npMeta">—</div>
+    </div>
+    <div class="np-controls">
+      <button id="playPauseBtn" aria-label="Play/Pausa">▶</button>
+      <button id="npFavBtn" class="star-btn" aria-label="Aggiungi ai preferiti" title="Aggiungi ai preferiti">☆</button>
+      <input type="range" id="volumeSlider" min="0" max="100" value="80" aria-label="Volume">
+    </div>
+    <div class="live-dot" id="liveDot"><span></span>IN DIRETTA</div>
+  </footer>
+
+  <audio id="audioEl" preload="metadata" crossorigin="anonymous"></audio>
+  <audio id="audioEqEl" preload="metadata" crossorigin="anonymous"></audio>
+
+<script>
+  const GENRES = [
+    {tag:"ambient",    name:"Ambient",   freq:"087.9"},
+    {tag:"jazz",       name:"Jazz",      freq:"088.5"},
+    {tag:"reggae",     name:"Reggae",    freq:"089.9"},
+    {tag:"classical",  name:"Classica",  freq:"091.5"},
+    {tag:"indie",      name:"Indie",     freq:"093.7"},
+    {tag:"rock",       name:"Rock",      freq:"095.3"},
+    {tag:"hip hop",    name:"Hip Hop",   freq:"097.3"},
+    {tag:"italian",    name:"Italiana",  freq:"099.1"},
+    {tag:"pop",        name:"Pop",       freq:"100.7"},
+    {tag:"dance",      name:"Dance",     freq:"102.5"},
+    {tag:"mashup",     name:"Mashup",    freq:"104.9"},
+    {tag:"metal",      name:"Metal",     freq:"106.1"},
+    {tag:"techno",     name:"Techno",    freq:"108.0"},
+  ];
+
+  const MIRRORS = [
+    "https://de1.api.radio-browser.info",
+    "https://nl1.api.radio-browser.info",
+    "https://at1.api.radio-browser.info",
+    "https://fr1.api.radio-browser.info"
+  ];
+
+  const tunerTrack   = document.getElementById('tunerTrack');
+  const freqDisplay  = document.getElementById('freqDisplay');
+  const genreDisplay = document.getElementById('genreDisplay');
+  const presets      = document.getElementById('presets');
+  const stationCount = document.getElementById('stationCount');
+  const shuffleBtn   = document.getElementById('shuffleBtn');
+  const audioEl      = document.getElementById('audioEl');
+  const audioEqEl    = document.getElementById('audioEqEl');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const volumeSlider = document.getElementById('volumeSlider');
+  const vu           = document.getElementById('vu');
+  const liveDot      = document.getElementById('liveDot');
+  const npName       = document.getElementById('npName');
+  const npMeta       = document.getElementById('npMeta');
+  const eqToggle     = document.getElementById('eqToggle');
+  const eqBandsEl    = document.getElementById('eqBands');
+  const eqResetBtn   = document.getElementById('eqResetBtn');
+  const eqStatus     = document.getElementById('eqStatus');
+  const themeToggle  = document.getElementById('themeToggle');
+  const searchInput  = document.getElementById('searchInput');
+  const searchBtn    = document.getElementById('searchBtn');
+  const favBtn       = document.getElementById('favBtn');
+  const npFavBtn     = document.getElementById('npFavBtn');
+  const qualityFilterBtn = document.getElementById('qualityFilterBtn');
+
+  let viewMode = 'genre'; // 'genre' | 'search' | 'favorites'
+  let lastGenre = null;
+  let favorites = [];
+  let qualityFilterEnabled = false;
+
+  let currentStation = null;
+  let currentGenre = null;
+  let userPaused = false;      // true only when the person deliberately hit pause
+  let reconnectAttempts = 0;
+  let reconnectTimer = null;
+  let stalledGraceTimer = null; // debounce for the 'stalled' event, which fires spuriously during normal buffering
+  const MAX_RECONNECT_ATTEMPTS = 6;
+  const stationCache = {}; // tag -> stations array, avoids re-fetching genres already loaded
+
+  // ---------- Equalizer state ----------
+  const EQ_BANDS = [
+    {label:'60Hz',  type:'lowshelf', freq:60},
+    {label:'250Hz', type:'peaking',  freq:250,  Q:1},
+    {label:'1kHz',  type:'peaking',  freq:1000, Q:1},
+    {label:'4kHz',  type:'peaking',  freq:4000, Q:1},
+    {label:'12kHz', type:'highshelf',freq:12000},
+  ];
+  let eqEnabled = false;
+  let audioCtx = null;
+  let eqFilters = null;   // array of BiquadFilterNode, built lazily on first activation
+  let eqAnalyser = null;
+  let eqSilenceCheckTimer = null;
+
+  // Gain values line up with EQ_BANDS order: [60Hz, 250Hz, 1kHz, 4kHz, 12kHz]
+  const EQ_PRESETS = [
+    {name:'Piatto',        gains:[0,0,0,0,0]},
+    {name:'Bassi',         gains:[8,5,0,-2,-3]},
+    {name:'Voce',          gains:[-4,-2,4,4,-2]},
+    {name:'Rock',          gains:[5,3,-2,3,5]},
+    {name:'Pop',           gains:[-1,2,4,2,-1]},
+    {name:'Acuti',         gains:[-3,-2,0,4,7]},
+    {name:'Club/Dance',    gains:[6,3,0,2,4]},
+  ];
+
+  const eqPresetsEl = document.getElementById('eqPresets');
+  EQ_PRESETS.forEach((preset, i) => {
+    const chip = document.createElement('button');
+    chip.className = 'eq-preset-chip' + (i === 0 ? ' active' : '');
+    chip.textContent = preset.name;
+    chip.addEventListener('click', () => applyEqPreset(preset, chip));
+    eqPresetsEl.appendChild(chip);
+  });
+
+  function applyEqPreset(preset, chipEl){
+    document.querySelectorAll('.eq-preset-chip').forEach(c => c.classList.remove('active'));
+    if(chipEl) chipEl.classList.add('active');
+    eqBandsEl.querySelectorAll('input[type=range]').forEach((slider, i) => {
+      const val = preset.gains[i];
+      slider.value = val;
+      slider.parentElement.querySelector('[data-db]').textContent = `${val>0?'+':''}${val}dB`;
+      if(eqFilters){ eqFilters[i].gain.value = val; }
+    });
+  }
+
+  function getActiveEl(){ return eqEnabled ? audioEqEl : audioEl; }
+
+  // Build the EQ slider UI (values only take effect once the audio graph exists)
+  EQ_BANDS.forEach((band, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'eq-band';
+    wrap.innerHTML = `
+      <span class="eq-db" data-db>0dB</span>
+      <input type="range" min="-12" max="12" step="1" value="0" data-band="${i}">
+      <span class="eq-label">${band.label}</span>
+    `;
+    eqBandsEl.appendChild(wrap);
+  });
+
+  eqBandsEl.querySelectorAll('input[type=range]').forEach(slider => {
+    slider.addEventListener('input', (e) => {
+      const i = Number(e.target.dataset.band);
+      const val = Number(e.target.value);
+      e.target.parentElement.querySelector('[data-db]').textContent = `${val>0?'+':''}${val}dB`;
+      if(eqFilters){ eqFilters[i].gain.value = val; }
+      document.querySelectorAll('.eq-preset-chip').forEach(c => c.classList.remove('active'));
+    });
+  });
+
+  eqResetBtn.addEventListener('click', () => {
+    applyEqPreset(EQ_PRESETS[0], eqPresetsEl.children[0]);
+  });
+
+  function buildEqGraphIfNeeded(){
+    if(eqFilters) return; // already built
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaElementSource(audioEqEl);
+    eqAnalyser = audioCtx.createAnalyser();
+    eqAnalyser.fftSize = 512;
+
+    eqFilters = EQ_BANDS.map(band => {
+      const f = audioCtx.createBiquadFilter();
+      f.type = band.type;
+      f.frequency.value = band.freq;
+      if(band.Q) f.Q.value = band.Q;
+      f.gain.value = 0;
+      return f;
+    });
+
+    // Chain: source -> band1 -> band2 -> ... -> analyser -> destination
+    let node = source;
+    eqFilters.forEach(f => { node.connect(f); node = f; });
+    node.connect(eqAnalyser);
+    eqAnalyser.connect(audioCtx.destination);
+
+    // Apply whatever the sliders already show
+    eqBandsEl.querySelectorAll('input[type=range]').forEach((slider, i) => {
+      eqFilters[i].gain.value = Number(slider.value);
+    });
+  }
+
+  eqToggle.addEventListener('change', (e) => {
+    if(e.target.checked){
+      enableEq();
+    }else{
+      disableEq();
+    }
+  });
+
+  function enableEq(){
+    buildEqGraphIfNeeded();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    eqEnabled = true;
+    eqBandsEl.classList.add('active');
+    eqStatus.textContent = 'Verifica compatibilità stream…';
+    eqStatus.className = 'eq-status';
+
+    if(currentStation){
+      switchActivePlayback();
+    }
+
+    clearTimeout(eqSilenceCheckTimer);
+    eqSilenceCheckTimer = setTimeout(checkEqSilence, 1300);
+  }
+
+  function disableEq(reason){
+    eqEnabled = false;
+    eqBandsEl.classList.remove('active');
+    eqToggle.checked = false;
+    eqStatus.textContent = reason || 'Disattivato';
+    eqStatus.className = reason ? 'eq-status warn' : 'eq-status';
+    if(currentStation){
+      switchActivePlayback();
+    }
+  }
+
+  // After switching to the EQ path, confirm real audio is actually coming through.
+  // Free radio streams often lack CORS headers, which silences Web-Audio-routed playback —
+  // if that happens, fall back to the untouched player automatically.
+  function checkEqSilence(){
+    if(!eqEnabled || !eqAnalyser) return;
+    const data = new Uint8Array(eqAnalyser.frequencyBinCount);
+    eqAnalyser.getByteFrequencyData(data);
+    const hasSignal = data.some(v => v > 0);
+    if(hasSignal){
+      eqStatus.textContent = 'Attivo';
+      eqStatus.className = 'eq-status on';
+    }else{
+      disableEq('Non disponibile per questa stazione — audio normale ripristinato');
+    }
+  }
+
+  // Moves playback between the raw element and the EQ-routed element, whichever is now active
+  function switchActivePlayback(){
+    const active = getActiveEl();
+    const other = eqEnabled ? audioEl : audioEqEl;
+    other.pause();
+    const streamUrl = currentStation.url_resolved || currentStation.url;
+    if(active.src !== streamUrl) active.src = streamUrl;
+    active.volume = audioEl.volume; // keep volume in sync across both elements
+    if(!userPaused){
+      active.play().catch(() => { /* handled by shared error listener */ });
+    }
+  }
+
+  audioEl.volume = 0.8;
+  audioEqEl.volume = 0.8;
+
+  // ---------- Render tuner buttons ----------
+  GENRES.forEach(g => {
+    const btn = document.createElement('button');
+    btn.className = 'genre-btn';
+    btn.innerHTML = `<span class="g-freq">${g.freq}</span><span class="g-name">${g.name}</span>`;
+    btn.addEventListener('click', () => selectGenre(g, btn));
+    btn.dataset.tag = g.tag;
+    tunerTrack.appendChild(btn);
+  });
+
+  // ---------- Station Quality/Health ----------
+  function getStationHealth(station){
+    // Returns: {score: 0-100, level: 'good'|'ok'|'poor'}
+    // Based on: lastcheck age, bitrate, SSL, codec stability
+    let score = 50; // baseline
+    const now = Date.now();
+    const lastCheckMs = station.lastchecktime ? new Date(station.lastchecktime).getTime() : 0;
+    const ageHours = (now - lastCheckMs) / 3600000;
+
+    // Recent check (within 7 days) = good
+    if(ageHours < 168) score += 20;
+    else if(ageHours < 720) score += 10;
+
+    // Bitrate quality
+    const br = station.bitrate || 0;
+    if(br >= 256) score += 15;
+    else if(br >= 128) score += 10;
+    else if(br > 0) score += 5;
+
+    // HTTPS = more stable
+    if(station.ssl) score += 10;
+
+    // Common codec = more compatible
+    const codec = (station.codec || '').toLowerCase();
+    if(['mp3', 'aac', 'ogg', 'flac'].includes(codec)) score += 10;
+
+    // Clamped to 0-100
+    score = Math.max(0, Math.min(100, score));
+    const level = score >= 70 ? 'good' : score >= 40 ? 'ok' : 'poor';
+    return {score, level};
+  }
+
+  function shouldIncludeStation(station){
+    if(!qualityFilterEnabled) return true;
+    const health = getStationHealth(station);
+    return health.level !== 'poor'; // hide poor stations when filter is on
+  }
+
+  function compareStationQuality(a, b){
+    // Sort by: health score DESC, then by click popularity DESC
+    const healthA = getStationHealth(a).score;
+    const healthB = getStationHealth(b).score;
+    if(healthB !== healthA) return healthB - healthA;
+    return (b.clickcount || 0) - (a.clickcount || 0);
+  }
+
+  qualityFilterBtn.addEventListener('click', () => {
+    qualityFilterEnabled = !qualityFilterEnabled;
+    qualityFilterBtn.classList.toggle('active', qualityFilterEnabled);
+    if(viewMode === 'genre' && lastGenre) loadStations(lastGenre);
+    else if(viewMode === 'search') doSearch();
+    else if(viewMode === 'favorites') renderFavoritesList();
+  });
+  themeToggle.addEventListener('click', () => {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    document.documentElement.setAttribute('data-theme', isLight ? 'dark' : 'light');
+    themeToggle.textContent = isLight ? '☀️' : '🌙';
+  });
+
+  // ---------- Favorites (persisted across sessions via window.storage) ----------
+  function getStationKey(s){ return s.stationuuid || s.url_resolved || s.url; }
+  function isFavorite(station){ return favorites.some(f => getStationKey(f) === getStationKey(station)); }
+
+  async function loadFavorites(){
+    try{
+      const raw = localStorage.getItem('sintonia_favorites');
+      favorites = raw ? JSON.parse(raw) : [];
+    }catch(e){
+      favorites = []; // no favorites saved yet, or storage unavailable — start empty
+    }
+  }
+  async function saveFavorites(){
+    try{
+      localStorage.setItem('sintonia_favorites', JSON.stringify(favorites));
+    }catch(e){ /* favorites still work for this session even if saving fails */ }
+  }
+
+  function toggleFavorite(station){
+    const key = getStationKey(station);
+    const idx = favorites.findIndex(f => getStationKey(f) === key);
+    if(idx >= 0) favorites.splice(idx, 1); else favorites.push(station);
+    saveFavorites();
+    syncFavoriteUI(station);
+    if(viewMode === 'favorites') renderFavoritesList();
+  }
+
+  function syncFavoriteUI(station){
+    const key = getStationKey(station);
+    presets.querySelectorAll('.station-row').forEach(row => {
+      if(row.dataset.uuid === key){
+        const starBtn = row.querySelector('[data-star]');
+        const fav = isFavorite(station);
+        starBtn.textContent = fav ? '★' : '☆';
+        starBtn.classList.toggle('active', fav);
+      }
+    });
+    if(currentStation && getStationKey(currentStation) === key){
+      updateNpFavBtn();
+    }
+  }
+
+  function updateNpFavBtn(){
+    if(!currentStation){ npFavBtn.textContent = '☆'; npFavBtn.classList.remove('active'); return; }
+    const fav = isFavorite(currentStation);
+    npFavBtn.textContent = fav ? '★' : '☆';
+    npFavBtn.classList.toggle('active', fav);
+  }
+
+  npFavBtn.addEventListener('click', () => {
+    if(!currentStation) return;
+    toggleFavorite(currentStation);
+  });
+
+  function renderFavoritesList(){
+    freqDisplay.innerHTML = '★★★';
+    genreDisplay.textContent = 'Preferiti';
+    if(favorites.length === 0){
+      presets.innerHTML = `<div class="empty-state">Nessuna stazione tra i preferiti. Tocca la stellina su una stazione per aggiungerla qui.</div>`;
+      stationCount.textContent = '';
+      return;
+    }
+    stationCount.textContent = `${favorites.length} preferit${favorites.length===1?'a':'e'}`;
+    presets.innerHTML = '';
+    favorites.forEach(s => presets.appendChild(renderStationRow(s, null)));
+  }
+
+  favBtn.addEventListener('click', () => {
+    if(viewMode === 'favorites'){
+      viewMode = 'genre';
+      favBtn.classList.remove('active');
+      if(lastGenre){
+        const btnEl = [...document.querySelectorAll('.genre-btn')].find(b => b.dataset.tag === lastGenre.tag);
+        selectGenre(lastGenre, btnEl);
+      }else{
+        presets.innerHTML = `<div class="empty-state">Sintonizzati su un genere qui sopra per scoprire le stazioni disponibili in tempo reale.</div>`;
+        stationCount.textContent = '';
+      }
+      return;
+    }
+    viewMode = 'favorites';
+    document.querySelectorAll('.genre-btn').forEach(b => b.classList.remove('active'));
+    favBtn.classList.add('active');
+    searchInput.value = '';
+    renderFavoritesList();
+  });
+
+  // ---------- Free-text station search ----------
+  async function doSearch(){
+    const q = searchInput.value.trim();
+    if(!q) return;
+    viewMode = 'search';
+    document.querySelectorAll('.genre-btn').forEach(b => b.classList.remove('active'));
+    favBtn.classList.remove('active');
+    freqDisplay.innerHTML = 'CERCA';
+    genreDisplay.textContent = `Risultati per "${q}"`;
+    presets.innerHTML = `<div class="status-msg">Ricerca in corso…</div>`;
+    stationCount.textContent = '';
+
+    let stations = null;
+    try{
+      stations = await Promise.any(
+        MIRRORS.map(base => fetchWithTimeout(
+          `${base}/json/stations/search?name=${encodeURIComponent(q)}&limit=30&hidebroken=true&order=clickcount&reverse=true`,
+          4500
+        ))
+      );
+    }catch(e){
+      stations = null;
+    }
+
+    if(stations === null){
+      presets.innerHTML = `<div class="status-msg error">Segnale disturbato: non riesco a raggiungere l'archivio delle stazioni in questo momento. Riprova tra poco.</div>`;
+      return;
+    }
+
+    stations = stations.filter(s => s.url_resolved || s.url).slice(0, 30);
+    // Sort by quality just like genre lists
+    stations = stations.sort(compareStationQuality);
+    
+    // Apply quality filter if enabled
+    let filtered = stations.filter(s => shouldIncludeStation(s));
+    
+    if(filtered.length === 0){
+      if(qualityFilterEnabled){
+        presets.innerHTML = `<div class="empty-state">Nessun risultato di alta qualità per "${q}". Prova a disattivare il filtro qualità.</div>`;
+      }else{
+        presets.innerHTML = `<div class="empty-state">Nessuna stazione trovata per "${q}". Prova un altro nome.</div>`;
+      }
+      stationCount.textContent = '';
+      return;
+    }
+    stationCount.textContent = `${filtered.length} risultat${filtered.length===1?'o':'i'}`;
+    presets.innerHTML = '';
+    filtered.forEach(s => presets.appendChild(renderStationRow(s, null)));
+  }
+
+  searchBtn.addEventListener('click', doSearch);
+  searchInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') doSearch(); });
+
+  function selectGenre(genre, btnEl){
+    viewMode = 'genre';
+    lastGenre = genre;
+    favBtn.classList.remove('active');
+    searchInput.value = '';
+    currentGenre = genre;
+    document.querySelectorAll('.genre-btn').forEach(b => b.classList.remove('active'));
+    if(btnEl) btnEl.classList.add('active');
+    freqDisplay.innerHTML = `${genre.freq}<span class="mhz">MHz</span>`;
+    genreDisplay.textContent = genre.name;
+    if(btnEl && btnEl.scrollIntoView){
+      btnEl.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+    }
+    loadStations(genre);
+  }
+
+  shuffleBtn.addEventListener('click', () => {
+    const pick = GENRES[Math.floor(Math.random()*GENRES.length)];
+    const btnEl = [...document.querySelectorAll('.genre-btn')].find(b => b.dataset.tag === pick.tag);
+    selectGenre(pick, btnEl);
+  });
+
+  // ---------- Fetch stations from Radio Browser (open internet radio directory) ----------
+  function fetchWithTimeout(url, ms){
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    return fetch(url, {headers:{'Accept':'application/json'}, signal:controller.signal})
+      .then(res => {
+        clearTimeout(timer);
+        if(!res.ok) throw new Error('bad response');
+        return res.json();
+      })
+      .then(data => {
+        if(!Array.isArray(data)) throw new Error('bad payload');
+        return data;
+      })
+      .finally(() => clearTimeout(timer));
+  }
+
+  async function loadStations(genre){
+    // Instant if we already fetched this genre this session
+    if(stationCache[genre.tag]){
+      renderStationList(stationCache[genre.tag], genre);
+      return;
+    }
+
+    presets.innerHTML = `<div class="status-msg">Ricerca stazioni su ${genre.name.toLowerCase()}…</div>`;
+    stationCount.textContent = '';
+
+    let stations = null;
+    try{
+      // Ask every mirror at once, take whichever answers first (max ~4.5s wait)
+      stations = await Promise.any(
+        MIRRORS.map(base => fetchWithTimeout(
+          `${base}/json/stations/bytag/${encodeURIComponent(genre.tag)}?limit=30&hidebroken=true&order=clickcount&reverse=true`,
+          4500
+        ))
+      );
+    }catch(e){
+      stations = null; // every mirror failed or timed out
+    }
+
+    if(stations === null){
+      presets.innerHTML = `<div class="status-msg error">Segnale disturbato: non riesco a raggiungere l'archivio delle stazioni in questo momento. Riprova tra poco.</div>`;
+      return;
+    }
+
+    stations = stations.filter(s => s.url_resolved || s.url).slice(0, 30);
+    // Sort by quality before caching
+    stations = stations.sort(compareStationQuality);
+    stationCache[genre.tag] = stations; // cache for instant re-visits this session
+    renderStationList(stations, genre);
+  }
+
+  function renderStationList(stations, genre){
+    // Filter by quality if enabled
+    let filtered = stations.filter(s => shouldIncludeStation(s));
+    
+    // Sort by health/quality, then by popularity
+    filtered = filtered.sort(compareStationQuality);
+
+    if(filtered.length === 0){
+      if(qualityFilterEnabled){
+        presets.innerHTML = `<div class="empty-state">Nessuna stazione di alta qualità trovata. Prova a disattivare il filtro qualità.</div>`;
+      }else{
+        presets.innerHTML = `<div class="empty-state">Nessuna stazione trovata su questa frequenza. Prova un altro genere.</div>`;
+      }
+      stationCount.textContent = '';
+      return;
+    }
+    stationCount.textContent = `${filtered.length} stazion${filtered.length===1?'e':'i'}`;
+    presets.innerHTML = '';
+    filtered.forEach(s => presets.appendChild(renderStationRow(s, genre)));
+  }
+
+  function renderStationRow(station, genre){
+    const row = document.createElement('div');
+    row.className = 'station-row';
+    row.dataset.uuid = getStationKey(station);
+
+    const initials = (station.name || '?').trim().slice(0,2).toUpperCase();
+    const favicon = station.favicon && station.favicon.startsWith('http') ? station.favicon : null;
+    const fav = isFavorite(station);
+    const health = getStationHealth(station);
+    const healthClass = health.level === 'good' ? '' : health.level === 'ok' ? 'warn' : 'bad';
+
+    row.innerHTML = `
+      <div class="station-health${healthClass ? ' '+healthClass : ''}" title="Affidabilità: ${health.level}"></div>
+      <div class="station-fav">${favicon ? `<img src="${favicon}" alt="" onerror="this.parentElement.textContent='${initials}'">` : initials}</div>
+      <div class="station-main">
+        <div class="station-name">${escapeHtml(station.name || 'Stazione senza nome')}</div>
+        <div class="station-meta">${escapeHtml(station.country || '—')} · ${station.bitrate ? station.bitrate+'kbps · ' : ''}${escapeHtml((station.codec||'').toUpperCase())}${station.ssl ? ' 🔒' : ''}</div>
+      </div>
+      <button class="star-btn${fav ? ' active' : ''}" data-star aria-label="Preferiti" title="Preferiti">${fav ? '★' : '☆'}</button>
+      <div class="station-play-icon">▶</div>
+    `;
+
+    row.querySelector('[data-star]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFavorite(station);
+    });
+
+    row.addEventListener('click', () => playStation(station, genre, row));
+    return row;
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ---------- Playback ----------
+  function playStation(station, genre, rowEl){
+    document.querySelectorAll('.station-row').forEach(r => r.classList.remove('playing'));
+    if(rowEl) rowEl.classList.add('playing');
+
+    clearTimeout(reconnectTimer);
+    clearTimeout(eqSilenceCheckTimer);
+    reconnectAttempts = 0;
+    userPaused = false;
+    currentStation = station;
+    currentGenre = genre;
+    const streamUrl = station.url_resolved || station.url;
+
+    const active = getActiveEl();
+    const other = eqEnabled ? audioEl : audioEqEl;
+    other.pause();
+    active.src = streamUrl;
+    active.volume = audioEl.volume;
+
+    npName.textContent = station.name || 'Stazione senza nome';
+    npMeta.textContent = `${genre ? genre.name+' · ' : ''}${station.country || ''}`;
+
+    updateMediaSession(station, genre);
+    updateNpFavBtn();
+
+    active.play().then(() => {
+      setPlayingState(true);
+      if(eqEnabled){
+        clearTimeout(eqSilenceCheckTimer);
+        eqSilenceCheckTimer = setTimeout(checkEqSilence, 1300);
+      }
+    }).catch(() => {
+      setPlayingState(false);
+      npMeta.textContent = 'Impossibile riprodurre questa stazione — provane un\'altra.';
+    });
+  }
+
+  // Tells Android/Chrome this is real media playback (not just background JS),
+  // which is what allows audio to keep playing with the screen off or another app open.
+  function updateMediaSession(station, genre){
+    if(!('mediaSession' in navigator)) return;
+    try{
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: station.name || 'Stazione senza nome',
+        artist: genre ? genre.name : 'SINTONIA',
+        album: 'SINTONIA — Hub Musicale'
+      });
+      navigator.mediaSession.setActionHandler('play', () => {
+        userPaused = false;
+        getActiveEl().play();
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        userPaused = true;
+        getActiveEl().pause();
+      });
+      navigator.mediaSession.setActionHandler('stop', () => {
+        userPaused = true;
+        getActiveEl().pause();
+      });
+    }catch(e){ /* Media Session unsupported or metadata rejected — safe to ignore */ }
+  }
+
+  function setPlayingState(isPlaying){
+    playPauseBtn.textContent = isPlaying ? '❚❚' : '▶';
+    vu.classList.toggle('playing', isPlaying);
+    liveDot.classList.toggle('on', isPlaying);
+    if('mediaSession' in navigator){
+      try{ navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused'; }catch(e){}
+    }
+  }
+
+  playPauseBtn.addEventListener('click', () => {
+    if(!currentStation) return;
+    const active = getActiveEl();
+    if(active.paused){
+      userPaused = false;
+      clearTimeout(reconnectTimer);
+      reconnectAttempts = 0;
+      active.play().then(()=>setPlayingState(true)).catch(()=>setPlayingState(false));
+    }else{
+      userPaused = true;
+      clearTimeout(reconnectTimer);
+      active.pause();
+      setPlayingState(false);
+    }
+  });
+
+  function onWaiting(e){ if(e.target !== getActiveEl()) return; setPlayingState(false); }
+  function onPlaying(e){
+    if(e.target !== getActiveEl()) return;
+    setPlayingState(true);
+    clearTimeout(reconnectTimer);
+    clearTimeout(stalledGraceTimer);
+    reconnectAttempts = 0;
+    if(npMeta.dataset.reconnecting){
+      npMeta.textContent = `${currentGenre ? currentGenre.name+' · ' : ''}${currentStation.country || ''}`;
+      delete npMeta.dataset.reconnecting;
+    }
+  }
+  function onPause(e){
+    if(e.target !== getActiveEl()) return;
+    setPlayingState(false);
+    if(!userPaused && currentStation){
+      scheduleReconnect();
+    }
+  }
+  function onError(e){
+    if(e.target !== getActiveEl()) return;
+    setPlayingState(false);
+    if(!userPaused && currentStation){
+      scheduleReconnect();
+    }else{
+      npMeta.textContent = 'Flusso interrotto — prova un\'altra stazione.';
+    }
+  }
+  function onStalled(e){
+    if(e.target !== getActiveEl()) return;
+    if(userPaused || !currentStation) return;
+    // 'stalled' fires often during ordinary buffering, not just on a real drop.
+    // Wait a few seconds and only reconnect if playback still hasn't resumed.
+    clearTimeout(stalledGraceTimer);
+    stalledGraceTimer = setTimeout(() => {
+      const active = getActiveEl();
+      if(active.paused || active.readyState < 3){
+        scheduleReconnect();
+      }
+    }, 4000);
+  }
+
+  [audioEl, audioEqEl].forEach(el => {
+    el.addEventListener('waiting', onWaiting);
+    el.addEventListener('playing', onPlaying);
+    el.addEventListener('pause', onPause);
+    el.addEventListener('error', onError);
+    el.addEventListener('stalled', onStalled);
+  });
+
+  function scheduleReconnect(){
+    if(userPaused || !currentStation) return;
+    clearTimeout(reconnectTimer);
+    if(reconnectAttempts >= MAX_RECONNECT_ATTEMPTS){
+      npMeta.textContent = 'Connessione persa — prova un\'altra stazione o riseleziona quella attuale.';
+      return;
+    }
+    reconnectAttempts++;
+    npMeta.dataset.reconnecting = '1';
+    npMeta.textContent = `Segnale caduto — riconnessione (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})…`;
+    const delay = Math.min(1500 * reconnectAttempts, 8000); // gentle backoff, capped at 8s
+    reconnectTimer = setTimeout(() => {
+      if(userPaused || !currentStation) return;
+      const el = getActiveEl();
+      const streamUrl = currentStation.url_resolved || currentStation.url;
+      // Cache-bust: forces a genuinely fresh connection to the live edge instead
+      // of risking a cached/stale response for the same URL, which is what made
+      // reconnects sound like they "rewound" to an earlier point in the stream.
+      const sep = streamUrl.includes('?') ? '&' : '?';
+      el.src = streamUrl + sep + '_cb=' + Date.now();
+      el.play().catch(() => scheduleReconnect());
+    }, delay);
+  }
+
+  volumeSlider.addEventListener('input', (e) => {
+    const v = e.target.value / 100;
+    audioEl.volume = v;
+    audioEqEl.volume = v;
+  });
+
+  // Select a default genre on load
+  (async function init(){
+    await loadFavorites();
+    selectGenre(GENRES[8], tunerTrack.children[8]); // Pop
+  })();
+
+  // ---------- Service Worker Registration for PWA ----------
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js', { scope: './' })
+      .then((reg) => {
+        console.log('Service Worker registrato:', reg.scope);
+        // Check for updates every 30 seconds
+        setInterval(() => reg.update(), 30000);
+      })
+      .catch((err) => console.log('SW registration fallito:', err));
+  }
+
+  // Detect PWA install prompt and allow custom install button (optional)
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+  });
+</script>
+
+</body>
+</html>
