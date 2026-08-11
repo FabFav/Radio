@@ -414,6 +414,9 @@
     50%{opacity:0.3;}
   }
 
+  .now-playing{cursor:pointer;}
+  .now-playing .np-controls{cursor:default;}
+
   @media (max-width:520px){
     .np-meta{display:none;}
     #volumeSlider{width:56px;}
@@ -422,13 +425,80 @@
     .live-dot span{width:8px;height:8px;}
   }
 
-  /* ---------- Equalizer section ---------- */
-  .eq-section{
+  /* ---------- Expandable player sheet ---------- */
+  .sheet-backdrop{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,0.45);
+    opacity:0;pointer-events:none;
+    transition:opacity 0.25s ease;
+    z-index:8;
+  }
+  .sheet-backdrop.open{opacity:1;pointer-events:auto;}
+
+  .player-sheet{
+    position:fixed;
+    left:0;right:0;bottom:0;
+    max-width:760px;
+    margin:0 auto;
     background:var(--panel);
     border:1px solid var(--line);
-    border-radius:14px;
-    padding:16px 18px 14px;
-    margin-top:16px;
+    border-bottom:none;
+    border-radius:20px 20px 0 0;
+    box-shadow:0 -16px 44px rgba(0,0,0,0.35);
+    padding:2px 20px calc(var(--footer-h, 76px) + 16px);
+    max-height:min(82vh, 640px);
+    overflow-y:auto;
+    transform:translateY(100%);
+    opacity:0;
+    pointer-events:none;
+    transition:transform 0.32s cubic-bezier(.2,.8,.2,1), opacity 0.25s ease;
+    z-index:9;
+  }
+  .player-sheet.open{
+    transform:translateY(0);
+    opacity:1;
+    pointer-events:auto;
+  }
+  .sheet-handle{
+    display:flex;justify-content:center;
+    width:100%;
+    padding:12px 0 8px;
+    background:transparent;border:none;
+    cursor:pointer;
+  }
+  .sheet-grip{width:36px;height:4px;border-radius:2px;background:var(--line);}
+  .sheet-header{
+    text-align:center;
+    padding-bottom:16px;
+    margin-bottom:16px;
+    border-bottom:1px solid var(--line);
+  }
+  .sheet-station-name{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:21px;
+    line-height:1.25;
+  }
+  .sheet-station-meta{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+    margin-top:4px;
+  }
+  .sheet-track{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12.5px;
+    color:var(--teal);
+    margin-top:12px;
+  }
+  .sheet-track.unavailable{color:var(--muted);font-style:italic;}
+
+  /* ---------- Equalizer section (nested inside the player sheet) ---------- */
+  .eq-section{
+    padding:0 0 20px;
+    margin-top:0;
+    border:none;
+    background:transparent;
   }
   .eq-header{
     display:flex;
@@ -576,22 +646,6 @@
       <div class="tuner-rail"></div>
     </section>
 
-    <section class="eq-section">
-      <div class="eq-header">
-        <span class="eq-title">Equalizzatore</span>
-        <label class="eq-switch">
-          <input type="checkbox" id="eqToggle">
-          <span class="eq-switch-track"><span class="eq-switch-thumb"></span></span>
-        </label>
-      </div>
-      <div class="eq-presets" id="eqPresets"></div>
-      <div class="eq-bands" id="eqBands"></div>
-      <div class="eq-footer">
-        <button class="ghost-btn" id="eqResetBtn">Azzera</button>
-        <span class="eq-status" id="eqStatus">Disattivato</span>
-      </div>
-    </section>
-
     <section class="search-bar">
       <input type="text" id="searchInput" placeholder="Cerca una stazione per nome…">
       <button class="ghost-btn" id="searchBtn">Cerca</button>
@@ -611,7 +665,7 @@
     </section>
   </div>
 
-  <footer class="now-playing">
+  <footer class="now-playing" id="nowPlayingBar">
     <div class="vu" id="vu">
       <span></span><span></span><span></span><span></span><span></span>
     </div>
@@ -626,6 +680,35 @@
     </div>
     <div class="live-dot" id="liveDot"><span></span>IN DIRETTA</div>
   </footer>
+
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <section class="player-sheet" id="playerSheet" aria-hidden="true">
+    <button class="sheet-handle" id="sheetCloseHandle" aria-label="Chiudi pannello">
+      <span class="sheet-grip"></span>
+    </button>
+
+    <div class="sheet-header">
+      <div class="sheet-station-name" id="sheetName">—</div>
+      <div class="sheet-station-meta" id="sheetMeta">—</div>
+      <div class="sheet-track" id="sheetTrack">In riproduzione: —</div>
+    </div>
+
+    <section class="eq-section">
+      <div class="eq-header">
+        <span class="eq-title">Equalizzatore</span>
+        <label class="eq-switch">
+          <input type="checkbox" id="eqToggle">
+          <span class="eq-switch-track"><span class="eq-switch-thumb"></span></span>
+        </label>
+      </div>
+      <div class="eq-presets" id="eqPresets"></div>
+      <div class="eq-bands" id="eqBands"></div>
+      <div class="eq-footer">
+        <button class="ghost-btn" id="eqResetBtn">Azzera</button>
+        <span class="eq-status" id="eqStatus">Disattivato</span>
+      </div>
+    </section>
+  </section>
 
   <audio id="audioEl" preload="metadata" crossorigin="anonymous"></audio>
   <audio id="audioEqEl" preload="metadata" crossorigin="anonymous"></audio>
@@ -678,6 +761,13 @@
   const favBtn       = document.getElementById('favBtn');
   const npFavBtn     = document.getElementById('npFavBtn');
   const qualityFilterBtn = document.getElementById('qualityFilterBtn');
+  const nowPlayingBar = document.getElementById('nowPlayingBar');
+  const playerSheet   = document.getElementById('playerSheet');
+  const sheetBackdrop = document.getElementById('sheetBackdrop');
+  const sheetCloseHandle = document.getElementById('sheetCloseHandle');
+  const sheetName     = document.getElementById('sheetName');
+  const sheetMeta     = document.getElementById('sheetMeta');
+  const sheetTrack    = document.getElementById('sheetTrack');
 
   let viewMode = 'genre'; // 'genre' | 'search' | 'favorites'
   let lastGenre = null;
@@ -1223,6 +1313,7 @@
 
     npName.textContent = station.name || 'Stazione senza nome';
     npMeta.textContent = `${genre ? genre.name+' · ' : ''}${station.country || ''}`;
+    updateNowPlayingTrack(streamUrl);
 
     updateMediaSession(station, genre);
     updateNpFavBtn();
@@ -1239,7 +1330,112 @@
     });
   }
 
-  // Tells Android/Chrome this is real media playback (not just background JS),
+  // ---------- Expandable player sheet ----------
+  // Keeps the sheet's big station name/meta in sync with the mini player,
+  // without touching every place that already updates npName/npMeta.
+  function mirrorText(sourceEl, targetEl){
+    targetEl.textContent = sourceEl.textContent;
+    new MutationObserver(() => { targetEl.textContent = sourceEl.textContent; })
+      .observe(sourceEl, {childList:true, characterData:true, subtree:true});
+  }
+  mirrorText(npName, sheetName);
+  mirrorText(npMeta, sheetMeta);
+
+  function updateFooterHeightVar(){
+    document.documentElement.style.setProperty('--footer-h', nowPlayingBar.offsetHeight + 'px');
+  }
+  updateFooterHeightVar();
+  window.addEventListener('resize', updateFooterHeightVar);
+
+  function openSheet(){
+    if(!currentStation) return;
+    playerSheet.classList.add('open');
+    playerSheet.setAttribute('aria-hidden', 'false');
+    sheetBackdrop.classList.add('open');
+  }
+  function closeSheet(){
+    playerSheet.classList.remove('open');
+    playerSheet.setAttribute('aria-hidden', 'true');
+    sheetBackdrop.classList.remove('open');
+  }
+  nowPlayingBar.addEventListener('click', (e) => {
+    if(e.target.closest('#playPauseBtn, #npFavBtn, #volumeSlider')) return;
+    openSheet();
+  });
+  sheetCloseHandle.addEventListener('click', closeSheet);
+  sheetBackdrop.addEventListener('click', closeSheet);
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape') closeSheet();
+  });
+
+  // ---------- Best-effort "now playing" track (ICY metadata) ----------
+  // Many free radio streams don't expose the CORS headers this needs, so this
+  // fails silently and falls back to a clear "not available" message — there's
+  // no reliable way to know in advance which stations will support it.
+  let icyAbortController = null;
+
+  async function fetchIcyTitle(streamUrl, signal){
+    try{
+      const res = await fetch(streamUrl, { headers: { 'Icy-MetaData': '1' }, signal });
+      const metaintHeader = res.headers.get('icy-metaint');
+      if(!metaintHeader || !res.body) return null;
+      const metaint = parseInt(metaintHeader, 10);
+      if(!metaint || metaint <= 0) return null;
+
+      const reader = res.body.getReader();
+      let buffer = new Uint8Array(0);
+      let totalRead = 0;
+      const SAFETY_CAP = metaint + 1 + 255*16 + 8192; // enough for one audio block + max metadata block
+
+      while(totalRead < SAFETY_CAP){
+        const { value, done } = await reader.read();
+        if(done) break;
+        const merged = new Uint8Array(buffer.length + value.length);
+        merged.set(buffer); merged.set(value, buffer.length);
+        buffer = merged;
+        totalRead += value.length;
+
+        if(buffer.length > metaint){
+          const metaLen = buffer[metaint] * 16;
+          if(metaLen === 0){ reader.cancel(); return null; }
+          if(buffer.length >= metaint + 1 + metaLen){
+            const metaBytes = buffer.slice(metaint + 1, metaint + 1 + metaLen);
+            const metaStr = new TextDecoder('utf-8').decode(metaBytes).replace(/\0+$/, '');
+            reader.cancel();
+            const match = metaStr.match(/StreamTitle='([^']*)'/);
+            return match && match[1] ? match[1] : null;
+          }
+        }
+      }
+      reader.cancel();
+      return null;
+    }catch(e){
+      return null; // CORS block, network error, or unsupported stream — expected on most stations
+    }
+  }
+
+  async function updateNowPlayingTrack(streamUrl){
+    if(icyAbortController) icyAbortController.abort();
+    icyAbortController = new AbortController();
+    const myController = icyAbortController;
+    sheetTrack.textContent = 'Verifica del brano in corso…';
+    sheetTrack.classList.add('unavailable');
+
+    const timeoutId = setTimeout(() => myController.abort(), 10000);
+    const title = await fetchIcyTitle(streamUrl, myController.signal);
+    clearTimeout(timeoutId);
+    if(myController.signal.aborted && myController !== icyAbortController) return; // superseded by a newer station
+
+    if(title){
+      sheetTrack.textContent = `In riproduzione: ${title}`;
+      sheetTrack.classList.remove('unavailable');
+    }else{
+      sheetTrack.textContent = 'Informazioni sul brano non disponibili per questa stazione.';
+      sheetTrack.classList.add('unavailable');
+    }
+  }
+
+
   // which is what allows audio to keep playing with the screen off or another app open.
   function updateMediaSession(station, genre){
     if(!('mediaSession' in navigator)) return;
