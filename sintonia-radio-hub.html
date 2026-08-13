@@ -1013,7 +1013,8 @@
     // has nothing to hide.
     let score = 0;
     const now = Date.now();
-    const lastCheckMs = station.lastchecktime ? new Date(station.lastchecktime).getTime() : 0;
+    const lastCheckRaw = station.lastchecktime_iso8601 || station.lastchecktime;
+    const lastCheckMs = lastCheckRaw ? new Date(lastCheckRaw).getTime() : 0;
     const ageHours = lastCheckMs ? (now - lastCheckMs) / 3600000 : Infinity;
 
     // Recently verified online = trustworthy; never verified/very stale = 0
@@ -1027,8 +1028,10 @@
     else if(br >= 128) score += 18;
     else if(br >= 64) score += 8;
 
-    // HTTPS = more stable
-    if(station.ssl) score += 20;
+    // HTTPS = more stable. Radio Browser has no boolean "ssl" field — the
+    // reliable signal is the stream URL's own scheme.
+    const streamUrl = station.url_resolved || station.url || '';
+    if(streamUrl.startsWith('https://')) score += 20;
 
     // Common codec = more compatible; unknown/missing codec earns nothing
     const codec = (station.codec || '').toLowerCase();
@@ -1346,12 +1349,14 @@
     const health = getStationHealth(station);
     const healthClass = health.level === 'good' ? '' : health.level === 'ok' ? 'warn' : 'bad';
 
+    const streamUrl = station.url_resolved || station.url || '';
+    const isHttps = streamUrl.startsWith('https://');
     row.innerHTML = `
       <div class="station-health${healthClass ? ' '+healthClass : ''}" title="Affidabilità: ${health.level}"></div>
       <div class="station-fav">${favicon ? `<img src="${favicon}" alt="" onerror="this.parentElement.textContent='${initials}'">` : initials}</div>
       <div class="station-main">
         <div class="station-name">${escapeHtml(station.name || 'Stazione senza nome')}</div>
-        <div class="station-meta">${escapeHtml(station.country || '—')} · ${station.bitrate ? station.bitrate+'kbps · ' : ''}${escapeHtml((station.codec||'').toUpperCase())}${station.ssl ? ' 🔒' : ''}</div>
+        <div class="station-meta">${escapeHtml(station.country || '—')} · ${station.bitrate ? station.bitrate+'kbps · ' : ''}${escapeHtml((station.codec||'').toUpperCase())}${isHttps ? ' 🔒' : ''}</div>
       </div>
       <button class="star-btn${fav ? ' active' : ''}" data-star aria-label="Preferiti" title="Preferiti">${fav ? '★' : '☆'}</button>
       <div class="station-play-icon">▶</div>
