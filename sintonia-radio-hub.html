@@ -313,10 +313,9 @@
     flex:0 0 auto;
     width:10px;height:10px;
     border-radius:50%;
-    background:#4CAF50; /* green for good */
+    background:#4CAF50; /* green: last check confirmed the stream online */
   }
-  .station-health.warn{background:#FFC107;} /* yellow for ok */
-  .station-health.bad{background:#F44336;}  /* red for poor */
+  .station-health.offline{background:#F44336;} /* red: last check failed */
   .station-fav{
     width:38px;height:38px;border-radius:8px;
     background:var(--panel-raised);
@@ -693,7 +692,6 @@
       <div class="toolbar-left">
         <button class="ghost-btn" id="shuffleBtn">Sorprendimi</button>
         <button class="ghost-btn" id="favBtn">★ Preferiti</button>
-        <button class="ghost-btn" id="qualityFilterBtn" title="Mostra solo stazioni affidabili">● Qualità alta</button>
       </div>
       <span class="station-count" id="stationCount"></span>
     </div>
@@ -803,7 +801,6 @@
   const searchBtn    = document.getElementById('searchBtn');
   const favBtn       = document.getElementById('favBtn');
   const npFavBtn     = document.getElementById('npFavBtn');
-  const qualityFilterBtn = document.getElementById('qualityFilterBtn');
   const nowPlayingBar = document.getElementById('nowPlayingBar');
   const playerSheet   = document.getElementById('playerSheet');
   const sheetBackdrop = document.getElementById('sheetBackdrop');
@@ -815,7 +812,6 @@
   let viewMode = 'genre'; // 'genre' | 'search' | 'favorites'
   let lastGenre = null;
   let favorites = [];
-  let qualityFilterEnabled = false;
 
   let currentStation = null;
   let currentGenre = null;
@@ -1004,67 +1000,18 @@
     tunerTrack.appendChild(btn);
   });
 
-  // ---------- Station Quality/Health ----------
-  function getStationHealth(station){
-    // Returns: {score: 0-100, level: 'good'|'ok'|'poor'}
-    // Based on: lastcheck age, bitrate, SSL, codec stability.
-    // Starts at 0 (not a baseline) so a station with no useful signals genuinely
-    // scores low — otherwise "poor" can never happen and the quality filter
-    // has nothing to hide.
-    let score = 0;
-    const now = Date.now();
-    const lastCheckRaw = station.lastchecktime_iso8601 || station.lastchecktime;
-    const lastCheckMs = lastCheckRaw ? new Date(lastCheckRaw).getTime() : 0;
-    const ageHours = lastCheckMs ? (now - lastCheckMs) / 3600000 : Infinity;
-
-    // Recently verified online = trustworthy; never verified/very stale = 0
-    if(ageHours < 24) score += 30;
-    else if(ageHours < 168) score += 20;
-    else if(ageHours < 720) score += 8;
-
-    // Bitrate quality
-    const br = station.bitrate || 0;
-    if(br >= 256) score += 25;
-    else if(br >= 128) score += 18;
-    else if(br >= 64) score += 8;
-
-    // HTTPS = more stable. Radio Browser has no boolean "ssl" field — the
-    // reliable signal is the stream URL's own scheme.
-    const streamUrl = station.url_resolved || station.url || '';
-    if(streamUrl.startsWith('https://')) score += 20;
-
-    // Common codec = more compatible; unknown/missing codec earns nothing
-    const codec = (station.codec || '').toLowerCase();
-    if(['mp3', 'aac', 'aac+', 'ogg', 'flac'].includes(codec)) score += 25;
-    else if(codec) score += 8;
-
-    // Clamped to 0-100
-    score = Math.max(0, Math.min(100, score));
-    const level = score >= 65 ? 'good' : score >= 35 ? 'ok' : 'poor';
-    return {score, level};
+  // ---------- Station status ----------
+  // Radio Browser tells us directly whether the last automated check reached
+  // the stream (lastcheckok: 1) or not (0) — no need to guess at "quality"
+  // from indirect signals.
+  function isStationOnline(station){
+    return station.lastcheckok === 1 || station.lastcheckok === '1';
   }
 
-  function shouldIncludeStation(station){
-    if(!qualityFilterEnabled) return true;
-    const health = getStationHealth(station);
-    return health.level !== 'poor'; // hide poor stations when filter is on
-  }
-
-  function compareStationQuality(a, b){
-    // Sort by: health score DESC, then by click popularity DESC
-    const healthA = getStationHealth(a).score;
-    const healthB = getStationHealth(b).score;
-    if(healthB !== healthA) return healthB - healthA;
+  function compareStationPopularity(a, b){
     return (b.clickcount || 0) - (a.clickcount || 0);
   }
 
-  qualityFilterBtn.addEventListener('click', () => {
-    qualityFilterEnabled = !qualityFilterEnabled;
-    qualityFilterBtn.classList.toggle('active', qualityFilterEnabled);
-    if(viewMode === 'genre' && lastGenre) loadStations(lastGenre);
-    else if(viewMode === 'search') doSearch();
-    else if(viewMode === 'favorites') renderFavoritesList();
-  });
   themeToggle.addEventListener('click', () => {
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     document.documentElement.setAttribute('data-theme', isLight ? 'dark' : 'light');
@@ -1188,24 +1135,16 @@
     }
 
     stations = stations.filter(s => s.url_resolved || s.url).slice(0, 30);
-    // Sort by quality just like genre lists
-    stations = stations.sort(compareStationQuality);
-    
-    // Apply quality filter if enabled
-    let filtered = stations.filter(s => shouldIncludeStation(s));
-    
-    if(filtered.length === 0){
-      if(qualityFilterEnabled){
-        presets.innerHTML = `<div class="empty-state">Nessun risultato di alta qualità per "${q}". Prova a disattivare il filtro qualità.</div>`;
-      }else{
-        presets.innerHTML = `<div class="empty-state">Nessuna stazione trovata per "${q}". Prova un altro nome.</div>`;
-      }
+    stations = stations.sort(compareStationPopularity);
+
+    if(stations.length === 0){
+      presets.innerHTML = `<div class="empty-state">Nessuna stazione trovata per "${q}". Prova un altro nome.</div>`;
       stationCount.textContent = '';
       return;
     }
-    stationCount.textContent = `${filtered.length} risultat${filtered.length===1?'o':'i'}`;
+    stationCount.textContent = `${stations.length} risultat${stations.length===1?'o':'i'}`;
     presets.innerHTML = '';
-    filtered.forEach(s => presets.appendChild(renderStationRow(s, null)));
+    stations.forEach(s => presets.appendChild(renderStationRow(s, null)));
   }
 
   searchBtn.addEventListener('click', doSearch);
@@ -1254,11 +1193,9 @@
     shuffleBtn.textContent = originalLabel;
 
     const stations = stationCache[pick.tag] || [];
-    const eligible = stations.filter(s => shouldIncludeStation(s));
-    const pool = eligible.length ? eligible : stations; // don't get stuck if the quality filter empties this genre out
-    if(pool.length === 0) return; // this genre came up empty this time — just press again for another try
+    if(stations.length === 0) return; // this genre came up empty this time — just press again for another try
 
-    const randomStation = pool[Math.floor(Math.random()*pool.length)];
+    const randomStation = stations[Math.floor(Math.random()*stations.length)];
     const rowEl = presets.querySelector(`[data-uuid="${CSS.escape(getStationKey(randomStation))}"]`);
     playStation(randomStation, pick, rowEl);
   }
@@ -1311,31 +1248,20 @@
     }
 
     stations = stations.filter(s => s.url_resolved || s.url).slice(0, 30);
-    // Sort by quality before caching
-    stations = stations.sort(compareStationQuality);
+    stations = stations.sort(compareStationPopularity);
     stationCache[genre.tag] = stations; // cache for instant re-visits this session
     renderStationList(stations, genre);
   }
 
   function renderStationList(stations, genre){
-    // Filter by quality if enabled
-    let filtered = stations.filter(s => shouldIncludeStation(s));
-    
-    // Sort by health/quality, then by popularity
-    filtered = filtered.sort(compareStationQuality);
-
-    if(filtered.length === 0){
-      if(qualityFilterEnabled){
-        presets.innerHTML = `<div class="empty-state">Nessuna stazione di alta qualità trovata. Prova a disattivare il filtro qualità.</div>`;
-      }else{
-        presets.innerHTML = `<div class="empty-state">Nessuna stazione trovata su questa frequenza. Prova un altro genere.</div>`;
-      }
+    if(stations.length === 0){
+      presets.innerHTML = `<div class="empty-state">Nessuna stazione trovata su questa frequenza. Prova un altro genere.</div>`;
       stationCount.textContent = '';
       return;
     }
-    stationCount.textContent = `${filtered.length} stazion${filtered.length===1?'e':'i'}`;
+    stationCount.textContent = `${stations.length} stazion${stations.length===1?'e':'i'}`;
     presets.innerHTML = '';
-    filtered.forEach(s => presets.appendChild(renderStationRow(s, genre)));
+    stations.forEach(s => presets.appendChild(renderStationRow(s, genre)));
   }
 
   function renderStationRow(station, genre){
@@ -1346,13 +1272,12 @@
     const initials = (station.name || '?').trim().slice(0,2).toUpperCase();
     const favicon = station.favicon && station.favicon.startsWith('http') ? station.favicon : null;
     const fav = isFavorite(station);
-    const health = getStationHealth(station);
-    const healthClass = health.level === 'good' ? '' : health.level === 'ok' ? 'warn' : 'bad';
+    const online = isStationOnline(station);
 
     const streamUrl = station.url_resolved || station.url || '';
     const isHttps = streamUrl.startsWith('https://');
     row.innerHTML = `
-      <div class="station-health${healthClass ? ' '+healthClass : ''}" title="Affidabilità: ${health.level}"></div>
+      <div class="station-health${online ? '' : ' offline'}" title="${online ? 'Stazione online' : 'Stazione offline all’ultimo controllo'}"></div>
       <div class="station-fav">${favicon ? `<img src="${favicon}" alt="" onerror="this.parentElement.textContent='${initials}'">` : initials}</div>
       <div class="station-main">
         <div class="station-name">${escapeHtml(station.name || 'Stazione senza nome')}</div>
