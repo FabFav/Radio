@@ -273,6 +273,7 @@
     transition:border-color 0.15s ease, color 0.15s ease;
   }
   .ghost-btn:hover{border-color:var(--amber);color:var(--amber);}
+  .ghost-btn:disabled{opacity:0.55;cursor:default;pointer-events:none;}
   .station-count{
     font-family:'JetBrains Mono',monospace;
     font-size:12px;
@@ -1006,32 +1007,37 @@
   // ---------- Station Quality/Health ----------
   function getStationHealth(station){
     // Returns: {score: 0-100, level: 'good'|'ok'|'poor'}
-    // Based on: lastcheck age, bitrate, SSL, codec stability
-    let score = 50; // baseline
+    // Based on: lastcheck age, bitrate, SSL, codec stability.
+    // Starts at 0 (not a baseline) so a station with no useful signals genuinely
+    // scores low — otherwise "poor" can never happen and the quality filter
+    // has nothing to hide.
+    let score = 0;
     const now = Date.now();
     const lastCheckMs = station.lastchecktime ? new Date(station.lastchecktime).getTime() : 0;
-    const ageHours = (now - lastCheckMs) / 3600000;
+    const ageHours = lastCheckMs ? (now - lastCheckMs) / 3600000 : Infinity;
 
-    // Recent check (within 7 days) = good
-    if(ageHours < 168) score += 20;
-    else if(ageHours < 720) score += 10;
+    // Recently verified online = trustworthy; never verified/very stale = 0
+    if(ageHours < 24) score += 30;
+    else if(ageHours < 168) score += 20;
+    else if(ageHours < 720) score += 8;
 
     // Bitrate quality
     const br = station.bitrate || 0;
-    if(br >= 256) score += 15;
-    else if(br >= 128) score += 10;
-    else if(br > 0) score += 5;
+    if(br >= 256) score += 25;
+    else if(br >= 128) score += 18;
+    else if(br >= 64) score += 8;
 
     // HTTPS = more stable
-    if(station.ssl) score += 10;
+    if(station.ssl) score += 20;
 
-    // Common codec = more compatible
+    // Common codec = more compatible; unknown/missing codec earns nothing
     const codec = (station.codec || '').toLowerCase();
-    if(['mp3', 'aac', 'ogg', 'flac'].includes(codec)) score += 10;
+    if(['mp3', 'aac', 'aac+', 'ogg', 'flac'].includes(codec)) score += 25;
+    else if(codec) score += 8;
 
     // Clamped to 0-100
     score = Math.max(0, Math.min(100, score));
-    const level = score >= 70 ? 'good' : score >= 40 ? 'ok' : 'poor';
+    const level = score >= 65 ? 'good' : score >= 35 ? 'ok' : 'poor';
     return {score, level};
   }
 
@@ -1218,11 +1224,43 @@
     loadStations(genre);
   }
 
-  shuffleBtn.addEventListener('click', () => {
+  async function surpriseMe(){
     const pick = GENRES[Math.floor(Math.random()*GENRES.length)];
     const btnEl = [...document.querySelectorAll('.genre-btn')].find(b => b.dataset.tag === pick.tag);
-    selectGenre(pick, btnEl);
-  });
+
+    viewMode = 'genre';
+    lastGenre = pick;
+    currentGenre = pick;
+    favBtn.classList.remove('active');
+    searchInput.value = '';
+    document.querySelectorAll('.genre-btn').forEach(b => b.classList.remove('active'));
+    if(btnEl) btnEl.classList.add('active');
+    freqDisplay.innerHTML = `${pick.freq}<span class="mhz">MHz</span>`;
+    genreDisplay.textContent = pick.name;
+    if(btnEl && btnEl.scrollIntoView){
+      btnEl.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+    }
+
+    const originalLabel = shuffleBtn.textContent;
+    shuffleBtn.disabled = true;
+    shuffleBtn.textContent = 'Cerco una sorpresa…';
+
+    await loadStations(pick); // uses the cache if we've already visited this genre this session
+
+    shuffleBtn.disabled = false;
+    shuffleBtn.textContent = originalLabel;
+
+    const stations = stationCache[pick.tag] || [];
+    const eligible = stations.filter(s => shouldIncludeStation(s));
+    const pool = eligible.length ? eligible : stations; // don't get stuck if the quality filter empties this genre out
+    if(pool.length === 0) return; // this genre came up empty this time — just press again for another try
+
+    const randomStation = pool[Math.floor(Math.random()*pool.length)];
+    const rowEl = presets.querySelector(`[data-uuid="${CSS.escape(getStationKey(randomStation))}"]`);
+    playStation(randomStation, pick, rowEl);
+  }
+
+  shuffleBtn.addEventListener('click', surpriseMe);
 
   // ---------- Fetch stations from Radio Browser (open internet radio directory) ----------
   function fetchWithTimeout(url, ms){
